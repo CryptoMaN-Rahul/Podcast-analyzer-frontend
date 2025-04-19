@@ -11,19 +11,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Sparkles, TrendingUp, Zap, Layers } from "lucide-react"
 
-export default function Home({
+export default async function Home({
   searchParams,
 }: {
   searchParams: { [key: string]: string | string[] | undefined }
 }) {
+  const params = await searchParams;
   // Parse search parameters
-  const channelId = typeof searchParams.channelId === "string" ? searchParams.channelId : undefined
-  const category = typeof searchParams.category === "string" ? searchParams.category : undefined
-  const tags = typeof searchParams.tags === "string" ? searchParams.tags : undefined
-  const search = typeof searchParams.search === "string" ? searchParams.search : undefined
-  const limit = typeof searchParams.limit === "string" ? Number.parseInt(searchParams.limit) : 9
-  const offset = typeof searchParams.offset === "string" ? Number.parseInt(searchParams.offset) : 0
-
+  const channelId = typeof params.channelId === "string" ? params.channelId : undefined;
+  const category = typeof params.category === "string" ? params.category : undefined;
+  const tags = typeof params.tags === "string" ? params.tags : undefined;
+  const search = typeof params.search === "string" ? params.search : undefined;
+  const limit = typeof params.limit === "string" ? Number.parseInt(params.limit) : 9;
+  const offset = typeof params.offset === "string" ? Number.parseInt(params.offset) : 0;
   return (
     <div className="space-y-0">
       <AdvancedHero />
