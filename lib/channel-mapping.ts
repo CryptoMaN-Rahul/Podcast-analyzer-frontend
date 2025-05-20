@@ -16,6 +16,9 @@ export const channelIdToName: Record<string, string> = {
   UChhw6DlKKTQ9mYSpTfXUYqA: "Starter Story",
 }
 
+// Export channelIdToName as channelMapping for backward compatibility
+export const channelMapping = channelIdToName
+
 // Get channel name from ID with fallback to original name
 export function getChannelName(channelId: string, fallbackName?: string): string {
   return channelIdToName[channelId] || fallbackName || channelId

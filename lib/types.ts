@@ -1,23 +1,19 @@
 export interface Insight {
   _id: string
-  channelId: string
-  insight_type: string
   title: string
-  problem_addressed: string
   description: string
+  problem_addressed: string
   category: string
   tags: string[]
+  channelId: string
+  thumbnail_url?: string
   source_context: {
     podcast_name: string
     episode_title: string
+    timestamp: string
   }
-  thumbnail_url: string
   createdAt: string
-}
-
-export interface Channel {
-  channelId: string
-  channelName: string
+  updatedAt: string
 }
 
 export interface InsightsResponse {
@@ -25,26 +21,16 @@ export interface InsightsResponse {
   total: number
 }
 
-export interface InsightsQueryParams {
-  channelId?: string
-  limit?: number
-  offset?: number
-  category?: string
-  tags?: string
-  search?: string
-}
-
-// New types for podcast stacks
 export interface PodcastStack {
-  id: string
-  thumbnailUrl: string
-  podcastName: string
-  episodeTitle: string
-  channelId: string
+  _id: string
+  podcast_name: string
+  episode_title: string
+  channel_id: string
   insights: Insight[]
-  insightCount: number
+  insight_count: number
   categories: string[]
   tags: string[]
+  thumbnail: string
   createdAt: string
 }
 
@@ -53,11 +39,31 @@ export interface PodcastStacksResponse {
   total: number
 }
 
-export interface PodcastStacksQueryParams {
-  channelId?: string
-  limit?: number
-  offset?: number
-  category?: string
-  tags?: string
-  search?: string
+export interface Channel {
+  id: string
+  name: string
+  insightCount: number
+  thumbnail?: string
+}
+
+export interface ChannelsResponse {
+  data: Channel[]
+}
+
+export interface Category {
+  name: string
+  count: number
+}
+
+export interface CategoriesResponse {
+  data: Category[]
+}
+
+export interface Tag {
+  name: string
+  count: number
+}
+
+export interface TagsResponse {
+  data: Tag[]
 }

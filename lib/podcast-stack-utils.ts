@@ -1,15 +1,50 @@
-import type { PodcastStack, PodcastStacksResponse } from "@/lib/types"
-import { getInsights } from "@/lib/insight-utils"
-import { channelMapping } from "@/lib/channel-mapping"
+import type { Insight, PodcastStack, PodcastStacksResponse } from "@/lib/types"
 
-interface PodcastStacksParams {
-  channelId?: string
-  category?: string
-  tags?: string
-  search?: string
-  limit?: number
-  offset?: number
-  sort?: string
+// Create podcast stacks from insights
+export function createPodcastStacks(insights: Insight[]): PodcastStack[] {
+  const stacksMap = new Map<string, Insight[]>()
+
+  // Group insights by thumbnail URL (podcast episode)
+  insights.forEach((insight) => {
+    if (!insight.thumbnail_url) return
+
+    if (!stacksMap.has(insight.thumbnail_url)) {
+      stacksMap.set(insight.thumbnail_url, [])
+    }
+
+    stacksMap.get(insight.thumbnail_url)?.push(insight)
+  })
+
+  // Convert map to array of podcast stacks
+  return Array.from(stacksMap.entries())
+    .filter(([_, insights]) => insights.length > 0)
+    .map(([thumbnailUrl, insights]) => {
+      // Sort insights by title for consistent ordering
+      const sortedInsights = [...insights].sort((a, b) => a.title.localeCompare(b.title))
+
+      // Use the first insight for metadata
+      const firstInsight = sortedInsights[0]
+
+      return {
+        _id: thumbnailUrl,
+        podcast_name: firstInsight.source_context.podcast_name || "Unknown Podcast",
+        episode_title: firstInsight.source_context.episode_title || "Unknown Episode",
+        channel_id: firstInsight.channelId,
+        insights: sortedInsights,
+        insight_count: sortedInsights.length,
+        categories: [...new Set(sortedInsights.map((i) => i.category))],
+        tags: [...new Set(sortedInsights.flatMap((i) => i.tags))],
+        thumbnail: thumbnailUrl,
+        createdAt: firstInsight.createdAt,
+      }
+    })
+    .sort((a, b) => {
+      // Sort by date (newest first) if available, otherwise by episode title
+      if (a.createdAt && b.createdAt) {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      }
+      return a.episode_title.localeCompare(b.episode_title)
+    })
 }
 
 // Group insights into podcast stacks
@@ -21,86 +56,47 @@ export async function getPodcastStacks({
   limit = 9,
   offset = 0,
   sort = "newest",
-}: PodcastStacksParams) {
+}: {
+  channelId?: string
+  category?: string
+  tags?: string
+  search?: string
+  limit?: number
+  offset?: number
+  sort?: string
+}) {
   // Get insights first
-  const insightsResponse = await getInsights({
-    channelId,
-    category,
-    tags,
-    search,
-    limit: 100, // Get more to group them
-    offset: 0,
-  })
-  const insights = insightsResponse.data
+  const insightsResponse = await fetch(`/api/insights?limit=100`)
+  const insights = await insightsResponse.json()
 
-  // Group insights by episode
-  const stacksMap = new Map<string, PodcastStack>()
+  // Create stacks using the createPodcastStacks function
+  const stacks = createPodcastStacks(insights.data)
 
-  insights.forEach((insight) => {
-    const episodeId = `${insight.source_context.podcast_name}-${insight.source_context.episode_title}`
-
-    if (!stacksMap.has(episodeId)) {
-      const channelInfo = Object.entries(channelMapping).find(
-        ([_, name]) => name === insight.source_context.podcast_name,
-      )
-
-      stacksMap.set(episodeId, {
-        _id: episodeId,
-        podcast_name: insight.source_context.podcast_name,
-        episode_title: insight.source_context.episode_title,
-        channel_id: channelInfo ? channelInfo[0] : "unknown",
-        insights: [],
-        insight_count: 0,
-        categories: [],
-        tags: [],
-        thumbnail: `/placeholder.svg?height=400&width=600&text=${encodeURIComponent(
-          insight.source_context.podcast_name,
-        )}`,
-        createdAt: insight.createdAt,
-      })
-    }
-
-    const stack = stacksMap.get(episodeId)!
-    stack.insights.push(insight)
-    stack.insight_count += 1
-
-    // Add categories and tags
-    if (insight.category && !stack.categories.includes(insight.category)) {
-      stack.categories.push(insight.category)
-    }
-
-    insight.tags.forEach((tag) => {
-      if (!stack.tags.includes(tag)) {
-        stack.tags.push(tag)
-      }
-    })
-  })
-
-  // Convert to array and sort
-  const stacks = Array.from(stacksMap.values())
+  // Filter stacks based on criteria
+  const filteredStacks = filterPodcastStacks(stacks, { channelId, category, tags, search })
 
   // Apply sorting
   switch (sort) {
     case "newest":
-      stacks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      filteredStacks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       break
     case "oldest":
-      stacks.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      filteredStacks.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
       break
     case "trending":
     case "popular":
-      stacks.sort((a, b) => b.insight_count - a.insight_count)
+      filteredStacks.sort((a, b) => b.insight_count - a.insight_count)
       break
     default:
-      stacks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      filteredStacks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }
 
   // Apply pagination
-  const paginatedStacks = stacks.slice(offset, offset + limit)
+  const paginatedStacks = filteredStacks.slice(offset, offset + limit)
 
   return {
     data: paginatedStacks,
-    total: stacks.length,
+    total: filteredStacks.length,
   }
 }
 
