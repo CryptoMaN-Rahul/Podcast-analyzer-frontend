@@ -1,7 +1,7 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode, Suspense } from "react"
+import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { getPodcastStacks } from "@/lib/api"
 import { useDebounce } from "@/hooks/use-debounce"
@@ -48,18 +48,40 @@ const defaultContextValue: SearchContextType = {
 
 const SearchContext = createContext<SearchContextType>(defaultContextValue)
 
-// Client component that uses searchParams
+// Component that uses searchParams - must be wrapped in Suspense
+function SearchParamsHandler({
+  children,
+  setInitialSearch,
+}: {
+  children: ReactNode
+  setInitialSearch: (search: string) => void
+}) {
+  // Import useSearchParams inside the component that's wrapped with Suspense
+  const { useSearchParams } = require("next/navigation")
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    setInitialSearch(searchParams?.get("search") || "")
+  }, [searchParams, setInitialSearch])
+
+  return <>{children}</>
+}
+
+// Client component that provides search context
 function SearchProviderInner({ children }: { children: ReactNode }) {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialSearch = searchParams?.get("search") || ""
-
-  const [searchQuery, setSearchQuery] = useState(initialSearch)
+  const [initialSearch, setInitialSearch] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1)
   const [isSearching, setIsSearching] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchResult<PodcastStack>[]>([])
+
+  // Update searchQuery when initialSearch changes
+  useEffect(() => {
+    setSearchQuery(initialSearch)
+  }, [initialSearch])
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
@@ -129,49 +151,35 @@ function SearchProviderInner({ children }: { children: ReactNode }) {
       return
     }
 
-    if (!searchParams) return
-
-    const params = new URLSearchParams(searchParams.toString())
-
+    // Use URLSearchParams to build the query string
+    const params = new URLSearchParams()
     params.set("search", searchQuery)
-    params.delete("offset") // Reset pagination
 
     router.push(`?${params.toString()}`)
     setShowSuggestions(false)
-  }, [searchQuery, searchParams, router])
+  }, [searchQuery, router])
 
   // Apply suggestion
   const applySuggestion = useCallback(
     (suggestion: string) => {
       setSearchQuery(suggestion)
 
-      if (!searchParams) return
-
-      const params = new URLSearchParams(searchParams.toString())
-
+      // Use URLSearchParams to build the query string
+      const params = new URLSearchParams()
       params.set("search", suggestion)
-      params.delete("offset") // Reset pagination
 
       router.push(`?${params.toString()}`)
       setShowSuggestions(false)
     },
-    [searchParams, router],
+    [router],
   )
 
   // Clear search
   const clearSearch = useCallback(() => {
     setSearchQuery("")
-
-    if (!searchParams) return
-
-    const params = new URLSearchParams(searchParams.toString())
-
-    params.delete("search")
-    params.delete("offset") // Reset pagination
-
-    router.push(`?${params.toString()}`)
+    router.push("")
     setShowSuggestions(false)
-  }, [searchParams, router])
+  }, [router])
 
   // Handle keyboard navigation for suggestions
   useEffect(() => {
@@ -222,7 +230,13 @@ function SearchProviderInner({ children }: { children: ReactNode }) {
     setShowSuggestions,
   }
 
-  return <SearchContext.Provider value={value}>{children}</SearchContext.Provider>
+  return (
+    <SearchContext.Provider value={value}>
+      <Suspense fallback={null}>
+        <SearchParamsHandler setInitialSearch={setInitialSearch}>{children}</SearchParamsHandler>
+      </Suspense>
+    </SearchContext.Provider>
+  )
 }
 
 // Wrapper component that doesn't directly use searchParams
@@ -231,6 +245,5 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 }
 
 export function useSearch() {
-  const context = useContext(SearchContext)
-  return context
+  return useContext(SearchContext)
 }
