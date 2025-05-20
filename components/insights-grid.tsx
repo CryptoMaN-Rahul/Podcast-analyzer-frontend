@@ -8,6 +8,7 @@ import { InsightCardSkeletonGrid } from "@/components/skeleton-loader"
 import { getInsights } from "@/lib/api"
 import type { InsightsQueryParams } from "@/lib/types"
 import { FileQuestion } from "lucide-react"
+import { useEffect } from "react"
 
 interface InsightsGridProps extends InsightsQueryParams {}
 
@@ -21,10 +22,24 @@ export function InsightsGrid({ channelId, category, tags, search, limit = 12, of
     offset,
   }
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isPreviousData } = useQuery({
     queryKey: ["insights", queryParams],
     queryFn: () => getInsights(queryParams),
+    keepPreviousData: true, // Keep previous data while loading new data
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
   })
+
+  // Prefetch next page
+  const { prefetchQuery } = useQuery()
+  useEffect(() => {
+    if (data?.data.length === limit) {
+      prefetchQuery({
+        queryKey: ["insights", { channelId, category, tags, search, limit, offset: offset + limit }],
+        queryFn: () => getInsights({ channelId, category, tags, search, limit, offset: offset + limit }),
+      })
+    }
+  }, [data, limit, offset, prefetchQuery])
 
   if (isLoading) {
     return <InsightCardSkeletonGrid count={limit} />
@@ -60,7 +75,7 @@ export function InsightsGrid({ channelId, category, tags, search, limit = 12, of
         ))}
       </div>
 
-      <Pagination total={data.total} limit={limit} offset={offset} />
+      <Pagination total={data.total} limit={limit} offset={offset} isLoading={isPreviousData} />
     </div>
   )
 }

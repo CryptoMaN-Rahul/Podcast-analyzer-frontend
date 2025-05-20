@@ -1,7 +1,49 @@
 import axios from "axios"
 import type { Insight, PodcastStack } from "@/lib/types"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
+// Create a configured axios instance with proper defaults
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "/api",
+  timeout: 10000, // 10 seconds timeout
+  headers: {
+    "Content-Type": "application/json",
+  },
+})
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Log errors in development
+    if (process.env.NODE_ENV !== "production") {
+      console.error("API Error:", error.response?.data || error.message)
+    }
+
+    // Customize error message based on status code
+    if (error.response) {
+      switch (error.response.status) {
+        case 404:
+          error.message = "Resource not found"
+          break
+        case 401:
+          error.message = "Unauthorized access"
+          break
+        case 403:
+          error.message = "Access forbidden"
+          break
+        case 500:
+          error.message = "Server error, please try again later"
+          break
+        default:
+          error.message = error.response.data?.message || "An unexpected error occurred"
+      }
+    } else if (error.request) {
+      error.message = "No response from server, please check your connection"
+    }
+
+    return Promise.reject(error)
+  },
+)
 
 export interface InsightsQueryParams {
   channelId?: string
@@ -25,70 +67,70 @@ export interface PodcastStacksResponse {
 
 export async function getInsights(params: InsightsQueryParams): Promise<InsightsResponse> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/insights`, { params })
-    return response.data
+    const { data } = await api.get("/insights", { params })
+    return data
   } catch (error) {
     console.error("Error fetching insights:", error)
-    throw new Error("Failed to fetch insights")
+    throw error
   }
 }
 
 export async function getInsight(insightId: string): Promise<Insight> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/insights/${insightId}`)
-    return response.data
+    const { data } = await api.get(`/insights/${insightId}`)
+    return data
   } catch (error) {
     console.error(`Error fetching insight ${insightId}:`, error)
-    throw new Error("Failed to fetch insight")
+    throw error
   }
 }
 
 export async function getPodcastStacks(params: InsightsQueryParams): Promise<PodcastStacksResponse> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/podcast-stacks`, { params })
-    return response.data
+    const { data } = await api.get("/podcast-stacks", { params })
+    return data
   } catch (error) {
     console.error("Error fetching podcast stacks:", error)
-    throw new Error("Failed to fetch podcast stacks")
+    throw error
   }
 }
 
 export async function getPodcastStack(stackId: string): Promise<PodcastStack> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/podcast-stacks/${stackId}`)
-    return response.data
+    const { data } = await api.get(`/podcast-stacks/${stackId}`)
+    return data
   } catch (error) {
     console.error(`Error fetching podcast stack ${stackId}:`, error)
-    throw new Error("Failed to fetch podcast stack")
+    throw error
   }
 }
 
 export async function getCategories(): Promise<string[]> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/categories`)
-    return response.data
+    const { data } = await api.get("/categories")
+    return data
   } catch (error) {
     console.error("Error fetching categories:", error)
-    throw new Error("Failed to fetch categories")
+    throw error
   }
 }
 
 export async function getChannels(): Promise<{ id: string; name: string }[]> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/channels`)
-    return response.data
+    const { data } = await api.get("/channels")
+    return data
   } catch (error) {
     console.error("Error fetching channels:", error)
-    throw new Error("Failed to fetch channels")
+    throw error
   }
 }
 
 export async function getTags(): Promise<string[]> {
   try {
-    const response = await axios.get(`${API_BASE_URL}/tags`)
-    return response.data
+    const { data } = await api.get("/tags")
+    return data
   } catch (error) {
     console.error("Error fetching tags:", error)
-    throw new Error("Failed to fetch tags")
+    throw error
   }
 }

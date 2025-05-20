@@ -1,13 +1,13 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { motion } from "framer-motion"
 import { PodcastStackCard } from "@/components/podcast-stack-card"
-import { AdvancedPagination } from "@/components/advanced-pagination"
+import { Pagination } from "@/components/pagination"
 import { ErrorMessage } from "@/components/error-message"
 import { AdvancedSkeletonLoader } from "@/components/advanced-skeleton-loader"
 import { getPodcastStacks } from "@/lib/api"
 import { FileQuestion } from "lucide-react"
+import { useEffect } from "react"
 
 interface PodcastStacksGridProps {
   channelId?: string
@@ -16,7 +16,7 @@ interface PodcastStacksGridProps {
   search?: string
   limit?: number
   offset?: number
-  sort?: "newest" | "trending" | "popular"
+  sort?: "trending" | "newest"
 }
 
 export function PodcastStacksGrid({
@@ -26,7 +26,7 @@ export function PodcastStacksGrid({
   search,
   limit = 9,
   offset = 0,
-  sort = "newest",
+  sort,
 }: PodcastStacksGridProps) {
   const queryParams = {
     channelId,
@@ -38,10 +38,24 @@ export function PodcastStacksGrid({
     sort,
   }
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch, isPreviousData } = useQuery({
     queryKey: ["podcast-stacks", queryParams],
     queryFn: () => getPodcastStacks(queryParams),
+    keepPreviousData: true,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false,
   })
+
+  // Prefetch next page
+  const { prefetchQuery } = useQuery()
+  useEffect(() => {
+    if (data?.data.length === limit) {
+      prefetchQuery({
+        queryKey: ["podcast-stacks", { channelId, category, tags, search, limit, offset: offset + limit, sort }],
+        queryFn: () => getPodcastStacks({ channelId, category, tags, search, limit, offset: offset + limit, sort }),
+      })
+    }
+  }, [data, limit, offset, prefetchQuery])
 
   if (isLoading) {
     return <AdvancedSkeletonLoader count={limit} />
@@ -59,39 +73,25 @@ export function PodcastStacksGrid({
 
   if (!data?.data.length) {
     return (
-      <motion.div
-        className="flex flex-col items-center justify-center py-16 text-center"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="rounded-full bg-muted p-6 mb-4">
-          <FileQuestion className="h-12 w-12 text-muted-foreground" />
-        </div>
-        <h3 className="text-xl font-medium mb-2">No podcast stacks found</h3>
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <FileQuestion className="h-16 w-16 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-medium mb-2">No podcast stacks found</h3>
         <p className="text-muted-foreground max-w-md">
           Try adjusting your search or filters to find what you're looking for.
         </p>
-      </motion.div>
+      </div>
     )
   }
 
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {data.data.map((stack, index) => (
-          <motion.div
-            key={stack._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-          >
-            <PodcastStackCard stack={stack} />
-          </motion.div>
+        {data.data.map((stack) => (
+          <PodcastStackCard key={stack._id} stack={stack} searchTerm={search} />
         ))}
       </div>
 
-      <AdvancedPagination total={data.total} limit={limit} offset={offset} />
+      <Pagination total={data.total} limit={limit} offset={offset} isLoading={isPreviousData} />
     </div>
   )
 }
