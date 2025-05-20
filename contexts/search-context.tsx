@@ -29,13 +29,30 @@ interface SearchContextType {
   setShowSuggestions: (show: boolean) => void
 }
 
-const SearchContext = createContext<SearchContextType | undefined>(undefined)
+// Create a default context value to avoid the "must be used within a Provider" error
+const defaultContextValue: SearchContextType = {
+  searchQuery: "",
+  setSearchQuery: () => {},
+  searchResults: [],
+  suggestions: [],
+  isLoading: false,
+  isSearching: false,
+  selectedSuggestion: -1,
+  setSelectedSuggestion: () => {},
+  applySearch: () => {},
+  applySuggestion: () => {},
+  clearSearch: () => {},
+  showSuggestions: false,
+  setShowSuggestions: () => {},
+}
+
+const SearchContext = createContext<SearchContextType>(defaultContextValue)
 
 // Client component that uses searchParams
 function SearchProviderInner({ children }: { children: ReactNode }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialSearch = searchParams.get("search") || ""
+  const initialSearch = searchParams?.get("search") || ""
 
   const [searchQuery, setSearchQuery] = useState(initialSearch)
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -51,7 +68,7 @@ function SearchProviderInner({ children }: { children: ReactNode }) {
     queryKey: ["podcast-stacks-all"],
     queryFn: () => getPodcastStacks({ limit: 1000 }), // Get a large batch for client-side search
     staleTime: 1000 * 60 * 30, // 30 minutes
-    cacheTime: 1000 * 60 * 60, // 1 hour
+    gcTime: 1000 * 60 * 60, // 1 hour
   })
 
   // Generate search suggestions when the debounced query changes
@@ -112,6 +129,8 @@ function SearchProviderInner({ children }: { children: ReactNode }) {
       return
     }
 
+    if (!searchParams) return
+
     const params = new URLSearchParams(searchParams.toString())
 
     params.set("search", searchQuery)
@@ -125,6 +144,8 @@ function SearchProviderInner({ children }: { children: ReactNode }) {
   const applySuggestion = useCallback(
     (suggestion: string) => {
       setSearchQuery(suggestion)
+
+      if (!searchParams) return
 
       const params = new URLSearchParams(searchParams.toString())
 
@@ -140,6 +161,8 @@ function SearchProviderInner({ children }: { children: ReactNode }) {
   // Clear search
   const clearSearch = useCallback(() => {
     setSearchQuery("")
+
+    if (!searchParams) return
 
     const params = new URLSearchParams(searchParams.toString())
 
@@ -209,8 +232,5 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 
 export function useSearch() {
   const context = useContext(SearchContext)
-  if (context === undefined) {
-    throw new Error("useSearch must be used within a SearchProvider")
-  }
   return context
 }
