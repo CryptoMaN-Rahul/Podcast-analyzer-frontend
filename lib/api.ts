@@ -1,186 +1,94 @@
 import axios from "axios"
-import type {
-  InsightsQueryParams,
-  InsightsResponse,
-  Insight,
-  Channel,
-  PodcastStack,
-  PodcastStacksQueryParams,
-  PodcastStacksResponse,
-} from "@/lib/types"
+import type { Insight, PodcastStack } from "@/lib/types"
 
-// 1. Determine the absolute base URL for server-side execution
-let absoluteBaseURL = ""
-if (typeof window === "undefined") {
-  // Check if running on the server
-  if (process.env.VERCEL_URL) {
-    absoluteBaseURL = `https://${process.env.VERCEL_URL}/api`
-  } else {
-    absoluteBaseURL = `http://localhost:${process.env.PORT || 3000}/api`
-  }
-  console.log(`[API Lib - Server] Determined Base URL: ${absoluteBaseURL}`)
-} else {
-  // Client-side
-  absoluteBaseURL = "/api"
-  console.log(`[API Lib - Client] Determined Base URL: ${absoluteBaseURL}`)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api"
+
+export interface InsightsQueryParams {
+  channelId?: string
+  category?: string
+  tags?: string
+  search?: string
+  limit?: number
+  offset?: number
+  sort?: string
 }
 
-// 2. Create Axios instance (Only used by getInsights now)
-const api = axios.create({
-  baseURL: absoluteBaseURL,
-})
-
-// --- Helper function to create Auth headers FOR SERVER-SIDE CALLS ---
-// Needed for getInsights when called server-side
-const getAuthHeaders = (): Record<string, string> => {
-  const headers: Record<string, string> = { "Content-Type": "application/json" }
-  if (typeof window === "undefined" && process.env.VERCEL_AUTOMATION_TOKEN) {
-    headers["Authorization"] = `Bearer ${process.env.VERCEL_AUTOMATION_TOKEN}`
-    console.log("[API Lib] Adding Vercel Automation Token to headers for internal call.")
-  } else if (typeof window === "undefined") {
-    console.warn("[API Lib] Server-side call detected, but VERCEL_AUTOMATION_TOKEN env var is not set.")
-  }
-  return headers
+export interface InsightsResponse {
+  data: Insight[]
+  total: number
 }
 
-// --- API Functions ---
+export interface PodcastStacksResponse {
+  data: PodcastStack[]
+  total: number
+}
 
-// getInsights using Axios (as data changes daily, avoids default static caching)
-export async function getInsights(params: InsightsQueryParams = {}): Promise<InsightsResponse> {
-  const requestPath = "/insights"
-  const fetchURL = `${api.defaults.baseURL}${requestPath}`
-  console.log(`[API Lib getInsights - Axios] Fetching ${fetchURL}`)
+export async function getInsights(params: InsightsQueryParams): Promise<InsightsResponse> {
   try {
-    // Get headers, including Auth token if server-side (needed for related insights call)
-    const headers = getAuthHeaders()
-    const { data } = await api.get(requestPath, { params, headers: headers })
-    return data
-  } catch (error: any) {
-    console.error(
-      `[API Lib getInsights - Axios] Error: Status ${error.response?.status}. Message: ${error.message}. URL: ${error.config?.url}`,
-    )
-    throw error
+    const response = await axios.get(`${API_BASE_URL}/insights`, { params })
+    return response.data
+  } catch (error) {
+    console.error("Error fetching insights:", error)
+    throw new Error("Failed to fetch insights")
   }
 }
 
-// getInsight using fetch (data is static, use default caching)
-export async function getInsight(insightId: string): Promise<Insight | null> {
-  const requestPath = `/insights/${insightId}`
-  const fetchURL = `${absoluteBaseURL}${requestPath}`
-  console.log(`[API Lib getInsight - fetch] Attempting Fetch: ${fetchURL}`)
+export async function getInsight(insightId: string): Promise<Insight> {
   try {
-    // Get headers (includes Auth token if server-side)
-    const headers = getAuthHeaders()
-    const response = await fetch(fetchURL, {
-      method: "GET",
-      headers: headers,
-      // NO cache directive here - use Next.js default caching (permanent)
-    })
-    console.log(`[API Lib getInsight - fetch] Response Status: ${response.status} for ID: ${insightId}`)
-    if (response.status === 404) return null
-    if (response.status === 401) throw new Error(`Request failed with status code 401`)
-    if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
-    const data = await response.json()
-    return data
-  } catch (error: any) {
-    console.error(`[API Lib getInsight - fetch] CAUGHT ERROR for ID ${insightId}:`, error.message || error)
-    throw error
+    const response = await axios.get(`${API_BASE_URL}/insights/${insightId}`)
+    return response.data
+  } catch (error) {
+    console.error(`Error fetching insight ${insightId}:`, error)
+    throw new Error("Failed to fetch insight")
   }
 }
 
-// getChannels using fetch (data is static, use default caching)
-export async function getChannels(): Promise<Channel[]> {
-  const requestPath = "/channels"
-  const fetchURL = `${absoluteBaseURL}${requestPath}`
-  console.log(`[API Lib getChannels - fetch] Fetching ${fetchURL}`)
+export async function getPodcastStacks(params: InsightsQueryParams): Promise<PodcastStacksResponse> {
   try {
-    const headers = getAuthHeaders() // Include auth header if potentially needed server-side
-    const response = await fetch(fetchURL, { headers: headers /*, cache defaults to 'force-cache' */ })
-    console.log(`[API Lib getChannels - fetch] Response Status: ${response.status}`)
-    if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
-    const data = await response.json()
-    return data
-  } catch (error: any) {
-    console.error(`[API Lib getChannels - fetch] Error:`, error.message || error)
-    throw error
+    const response = await axios.get(`${API_BASE_URL}/podcast-stacks`, { params })
+    return response.data
+  } catch (error) {
+    console.error("Error fetching podcast stacks:", error)
+    throw new Error("Failed to fetch podcast stacks")
   }
 }
 
-// getCategories using fetch (data is static, use default caching)
+export async function getPodcastStack(stackId: string): Promise<PodcastStack> {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/podcast-stacks/${stackId}`)
+    return response.data
+  } catch (error) {
+    console.error(`Error fetching podcast stack ${stackId}:`, error)
+    throw new Error("Failed to fetch podcast stack")
+  }
+}
+
 export async function getCategories(): Promise<string[]> {
-  const requestPath = "/categories"
-  const fetchURL = `${absoluteBaseURL}${requestPath}`
-  console.log(`[API Lib getCategories - fetch] Fetching ${fetchURL}`)
   try {
-    const headers = getAuthHeaders() // Include auth header if potentially needed server-side
-    const response = await fetch(fetchURL, { headers: headers })
-    console.log(`[API Lib getCategories - fetch] Response Status: ${response.status}`)
-    if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
-    const data = await response.json()
-    return data
-  } catch (error: any) {
-    console.error(`[API Lib getCategories - fetch] Error:`, error.message || error)
-    throw error
+    const response = await axios.get(`${API_BASE_URL}/categories`)
+    return response.data
+  } catch (error) {
+    console.error("Error fetching categories:", error)
+    throw new Error("Failed to fetch categories")
   }
 }
 
-// getTags using fetch (data is static, use default caching)
+export async function getChannels(): Promise<{ id: string; name: string }[]> {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/channels`)
+    return response.data
+  } catch (error) {
+    console.error("Error fetching channels:", error)
+    throw new Error("Failed to fetch channels")
+  }
+}
+
 export async function getTags(): Promise<string[]> {
-  const requestPath = "/tags"
-  const fetchURL = `${absoluteBaseURL}${requestPath}`
-  console.log(`[API Lib getTags - fetch] Fetching ${fetchURL}`)
   try {
-    const headers = getAuthHeaders() // Include auth header if potentially needed server-side
-    const response = await fetch(fetchURL, { headers: headers })
-    console.log(`[API Lib getTags - fetch] Response Status: ${response.status}`)
-    if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
-    const data = await response.json()
-    return data
-  } catch (error: any) {
-    console.error(`[API Lib getTags - fetch] Error:`, error.message || error)
-    throw error
-  }
-}
-
-// getPodcastStacks using Axios
-export async function getPodcastStacks(params: PodcastStacksQueryParams = {}): Promise<PodcastStacksResponse> {
-  const requestPath = "/podcast-stacks"
-  const fetchURL = `${api.defaults.baseURL}${requestPath}`
-  console.log(`[API Lib getPodcastStacks - Axios] Fetching ${fetchURL}`)
-  try {
-    // Get headers, including Auth token if server-side
-    const headers = getAuthHeaders()
-    const { data } = await api.get(requestPath, { params, headers: headers })
-    return data
-  } catch (error: any) {
-    console.error(
-      `[API Lib getPodcastStacks - Axios] Error: Status ${error.response?.status}. Message: ${error.message}. URL: ${error.config?.url}`,
-    )
-    throw error
-  }
-}
-
-// getPodcastStack using fetch
-export async function getPodcastStack(stackId: string): Promise<PodcastStack | null> {
-  const requestPath = `/podcast-stacks/${encodeURIComponent(stackId)}`
-  const fetchURL = `${absoluteBaseURL}${requestPath}`
-  console.log(`[API Lib getPodcastStack - fetch] Attempting Fetch: ${fetchURL}`)
-  try {
-    // Get headers (includes Auth token if server-side)
-    const headers = getAuthHeaders()
-    const response = await fetch(fetchURL, {
-      method: "GET",
-      headers: headers,
-      // Use Next.js default caching (permanent)
-    })
-    console.log(`[API Lib getPodcastStack - fetch] Response Status: ${response.status} for ID: ${stackId}`)
-    if (response.status === 404) return null
-    if (response.status === 401) throw new Error(`Request failed with status code 401`)
-    if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
-    const data = await response.json()
-    return data
-  } catch (error: any) {
-    console.error(`[API Lib getPodcastStack - fetch] CAUGHT ERROR for ID ${stackId}:`, error.message || error)
-    throw error
+    const response = await axios.get(`${API_BASE_URL}/tags`)
+    return response.data
+  } catch (error) {
+    console.error("Error fetching tags:", error)
+    throw new Error("Failed to fetch tags")
   }
 }

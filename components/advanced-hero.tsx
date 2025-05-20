@@ -117,7 +117,7 @@ export function AdvancedHero() {
               onMouseEnter={() => setHovered(true)}
               onMouseLeave={() => setHovered(false)}
             >
-              <Link href="#insights">
+              <Link href="#podcast-stacks">
                 Explore Insights
                 <ArrowRight
                   className={cn("h-4 w-4 transition-transform duration-300", hovered ? "translate-x-1" : "")}
@@ -126,9 +126,11 @@ export function AdvancedHero() {
               </Link>
             </Button>
 
-            <Button variant="outline" size="lg" className="gap-2 group">
-              <Play className="h-4 w-4 transition-transform duration-300 group-hover:scale-125" />
-              <span>Watch Demo</span>
+            <Button variant="outline" size="lg" className="gap-2 group" asChild>
+              <Link href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank">
+                <Play className="h-4 w-4 transition-transform duration-300 group-hover:scale-125" />
+                <span>Watch Demo</span>
+              </Link>
             </Button>
           </motion.div>
 
@@ -138,9 +140,9 @@ export function AdvancedHero() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8, duration: 0.5 }}
           >
-            <p className="text-sm text-muted-foreground">Trusted by entrepreneurs from</p>
+            <p className="text-sm text-muted-foreground">Featured podcasts from</p>
             <div className="flex flex-wrap justify-center gap-8 grayscale opacity-70">
-              {["Y Combinator", "Sequoia", "Andreessen Horowitz", "Accel", "First Round"].map((company, i) => (
+              {["Lex Fridman", "Tim Ferriss", "Joe Rogan", "Andrew Huberman", "Naval Ravikant"].map((company, i) => (
                 <motion.div
                   key={company}
                   className="text-sm font-semibold"
@@ -172,7 +174,7 @@ export function AdvancedHero() {
           }}
         >
           <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 border" asChild>
-            <a href="#insights">
+            <a href="#podcast-stacks">
               <ChevronRight className="h-4 w-4 rotate-90" />
             </a>
           </Button>

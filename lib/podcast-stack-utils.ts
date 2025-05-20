@@ -1,50 +1,112 @@
-import type { Insight, PodcastStack, PodcastStacksResponse } from "@/lib/types"
+import type { PodcastStack, PodcastStacksResponse } from "@/lib/types"
+import { getInsights } from "@/lib/insight-utils"
+import { channelMapping } from "@/lib/channel-mapping"
+
+interface PodcastStacksParams {
+  channelId?: string
+  category?: string
+  tags?: string
+  search?: string
+  limit?: number
+  offset?: number
+  sort?: string
+}
 
 // Group insights into podcast stacks
-export function createPodcastStacks(insights: Insight[]): PodcastStack[] {
-  const stacksMap = new Map<string, Insight[]>()
+export async function getPodcastStacks({
+  channelId,
+  category,
+  tags,
+  search,
+  limit = 9,
+  offset = 0,
+  sort = "newest",
+}: PodcastStacksParams) {
+  // Get insights first
+  const insightsResponse = await getInsights({
+    channelId,
+    category,
+    tags,
+    search,
+    limit: 100, // Get more to group them
+    offset: 0,
+  })
+  const insights = insightsResponse.data
 
-  // Group insights by thumbnail URL (podcast episode)
+  // Group insights by episode
+  const stacksMap = new Map<string, PodcastStack>()
+
   insights.forEach((insight) => {
-    if (!insight.thumbnail_url) return
+    const episodeId = `${insight.source_context.podcast_name}-${insight.source_context.episode_title}`
 
-    if (!stacksMap.has(insight.thumbnail_url)) {
-      stacksMap.set(insight.thumbnail_url, [])
+    if (!stacksMap.has(episodeId)) {
+      const channelInfo = Object.entries(channelMapping).find(
+        ([_, name]) => name === insight.source_context.podcast_name,
+      )
+
+      stacksMap.set(episodeId, {
+        _id: episodeId,
+        podcast_name: insight.source_context.podcast_name,
+        episode_title: insight.source_context.episode_title,
+        channel_id: channelInfo ? channelInfo[0] : "unknown",
+        insights: [],
+        insight_count: 0,
+        categories: [],
+        tags: [],
+        thumbnail: `/placeholder.svg?height=400&width=600&text=${encodeURIComponent(
+          insight.source_context.podcast_name,
+        )}`,
+        createdAt: insight.createdAt,
+      })
     }
 
-    stacksMap.get(insight.thumbnail_url)?.push(insight)
+    const stack = stacksMap.get(episodeId)!
+    stack.insights.push(insight)
+    stack.insight_count += 1
+
+    // Add categories and tags
+    if (insight.category && !stack.categories.includes(insight.category)) {
+      stack.categories.push(insight.category)
+    }
+
+    insight.tags.forEach((tag) => {
+      if (!stack.tags.includes(tag)) {
+        stack.tags.push(tag)
+      }
+    })
   })
 
-  // Convert map to array of podcast stacks
-  return Array.from(stacksMap.entries())
-    .filter(([_, insights]) => insights.length > 0)
-    .map(([thumbnailUrl, insights]) => {
-      // Sort insights by title for consistent ordering
-      const sortedInsights = [...insights].sort((a, b) => a.title.localeCompare(b.title))
+  // Convert to array and sort
+  const stacks = Array.from(stacksMap.values())
 
-      // Use the first insight for metadata
-      const firstInsight = sortedInsights[0]
+  // Apply sorting
+  switch (sort) {
+    case "newest":
+      stacks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      break
+    case "oldest":
+      stacks.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      break
+    case "trending":
+    case "popular":
+      stacks.sort((a, b) => b.insight_count - a.insight_count)
+      break
+    default:
+      stacks.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }
 
-      return {
-        id: thumbnailUrl,
-        thumbnailUrl,
-        podcastName: firstInsight.source_context.podcast_name || "Unknown Podcast",
-        episodeTitle: firstInsight.source_context.episode_title || "Unknown Episode",
-        channelId: firstInsight.channelId,
-        insights: sortedInsights,
-        insightCount: sortedInsights.length,
-        categories: [...new Set(sortedInsights.map((i) => i.category))],
-        tags: [...new Set(sortedInsights.flatMap((i) => i.tags))],
-        createdAt: firstInsight.createdAt,
-      }
-    })
-    .sort((a, b) => {
-      // Sort by date (newest first) if available, otherwise by episode title
-      if (a.createdAt && b.createdAt) {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      }
-      return a.episodeTitle.localeCompare(b.episodeTitle)
-    })
+  // Apply pagination
+  const paginatedStacks = stacks.slice(offset, offset + limit)
+
+  return {
+    data: paginatedStacks,
+    total: stacks.length,
+  }
+}
+
+export async function getPodcastStack(stackId: string) {
+  const allStacks = await getPodcastStacks({})
+  return allStacks.data.find((stack) => stack._id === stackId)
 }
 
 // Get all unique categories from podcast stacks
@@ -64,7 +126,7 @@ export function filterPodcastStacks(
 ): PodcastStack[] {
   return stacks.filter((stack) => {
     // Filter by channel ID
-    if (channelId && stack.channelId !== channelId) {
+    if (channelId && stack.channel_id !== channelId) {
       return false
     }
 
@@ -84,8 +146,8 @@ export function filterPodcastStacks(
     // Filter by search term
     if (search) {
       const searchLower = search.toLowerCase()
-      const matchesEpisode = stack.episodeTitle.toLowerCase().includes(searchLower)
-      const matchesPodcast = stack.podcastName.toLowerCase().includes(searchLower)
+      const matchesEpisode = stack.episode_title.toLowerCase().includes(searchLower)
+      const matchesPodcast = stack.podcast_name.toLowerCase().includes(searchLower)
       const matchesInsight = stack.insights.some(
         (insight) =>
           insight.title.toLowerCase().includes(searchLower) ||

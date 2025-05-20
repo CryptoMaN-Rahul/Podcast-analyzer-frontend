@@ -1,24 +1,56 @@
 "use client"
 
-import { useState } from "react"
-import { SearchBar } from "@/components/search-bar"
+import { useRef } from "react"
+import { motion } from "framer-motion"
 import { FilterControls } from "@/components/filter-controls"
 import { Button } from "@/components/ui/button"
 import { Filter, X } from "lucide-react"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { EnhancedSearchBar } from "@/components/enhanced-search-bar"
+import { useState } from "react"
 
 export function FilterSection() {
   const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={containerRef}>
+      <motion.div
+        className="relative"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <EnhancedSearchBar autoFocus={false} />
+      </motion.div>
+
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <SearchBar />
+        <div className="hidden md:block flex-1">
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{
+              opacity: 1,
+              height: "auto",
+            }}
+            transition={{ duration: 0.3 }}
+          >
+            <Accordion type="single" collapsible defaultValue="filters">
+              <AccordionItem value="filters" className="border-none">
+                <AccordionTrigger className="py-2">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    <span>Filters</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <FilterControls orientation="horizontal" />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </motion.div>
         </div>
-        <div className="hidden md:block">
-          <FilterControls />
-        </div>
+
         <div className="md:hidden">
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
